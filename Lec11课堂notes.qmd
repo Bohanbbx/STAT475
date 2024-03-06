@@ -1,0 +1,92 @@
+---
+title: "Lec11课堂notes"
+format: html
+editor: visual
+---
+
+```{r}
+# Read in data
+tomato <- read.csv(file  = "TomatoVirus.csv",
+                   stringsAsFactors=TRUE)
+head(tomato)
+```
+
+**`stringsAsFactors=TRUE`**这个参数在**`read.csv`**函数中的作用是指定在读取CSV文件时，是否应该将字符串（文本）数据转换为因子（factor）类型。因子类型在R中是用于表示分类数据的数据类型。
+
+```{r}
+# Change Infest to a factor class
+tomato$Infest <- factor(tomato$Infest)
+```
+
+```{r}
+# Estimate the model with both factors
+mod.fit <- glm(formula=Virus8/Plants ~ Infest + Control, 
+               family=binomial(link=logit), data=tomato, weights=Plants)
+summary(mod.fit)
+```
+
+```{r}
+# Probability of success when all indicators are 0
+# (baseline probability of success)
+plogis(coef(mod.fit)[1])
+```
+
+```{r}
+# 使用交互作用估计模型
+mod.fit.inter <- glm(formula=Virus8/Plants ~ Infest + Control + Infest:Control, family=binomial(link=logit), data=tomato, weights=Plants)
+summary(mod.fit.inter)
+exp(0.9258)
+```
+
+```{r}
+# 似然比检验（LRT）
+library(package=car)
+Anova(mod.fit.inter)
+```
+
+```{r}
+# 带有交互作用模型的Odds ratios
+# 使用emmeans的Wald区间最简单
+library(emmeans)
+# 为我们想要比较的变量水平创建预测的logit值
+# specs = ~control+infest 创建这些变量所有组合的均值
+# 这是logit of pai的值
+emm1 = emmeans(mod.fit.inter, specs= ~Control+Infest)
+summary(emm1)
+```
+
+```{r}
+# 这是对上面的结果取e^logit/1+e^logit之后的概率
+# probability of success
+summary(emm1, type="response")
+```
+
+```{r}
+# 对每种控制方法下虫害影响的ORs(赔率比)进行置信区间估计
+# Conf Ints for ORs comparing infestation effects at each Control
+# 调整多重比较
+(comp.infest = contrast(emm1, method="revpairwise", by="Control"))
+confint(comp.infest, type="response")
+#这里我们holding control不变，让infest2减去1
+```
+
+```{r}
+# 对每种虫害方法下不同控制方法效果的ORs进行置信区间估计
+# 调整多重比较
+(comp.control = contrast(emm1, method="pairwise", by="Infest"))
+confint(comp.control, type="response")
+```
+
+```{r}
+# 比较所有6种概率之间的置信区间
+# 由于进行了更多比较，使用更严格的置信水平调整
+confint(contrast(emm1, method="pairwise"), type="response")
+
+# 如果我们只想比较变量在ORs中连续水平的情况怎么办？
+confint(contrast(emm1, method="consec"), type="response")
+
+# 两个赔率比之比的置信区间
+# 对比两个ORs很有用：控制C与N的OR对于虫害2和1来说是否相似？
+aa = contrast(emm1, interaction=list("pairwise", "revpairwise"))
+confint(aa, type="response")
+```
